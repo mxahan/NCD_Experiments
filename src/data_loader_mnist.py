@@ -16,6 +16,12 @@ import torchvision
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
+import sklearn
+import sklearn.cluster
+
+import numpy as np
+import random 
+
 import idx2numpy
 from torch.utils.data import Dataset, DataLoader
 #%%
@@ -60,8 +66,7 @@ def image_file_labe(train= True):
     
     return imagearray, imagelabel
 
-import numpy as np
-import random 
+
 
 class CustomDataset(Dataset):
     def __init__(self, imagearray, imagelabel, transform = None, 
@@ -96,99 +101,29 @@ class CustomDataset(Dataset):
         
         class_id = torch.tensor([class_id])
         return img_tensor, class_id
+
+
+def Fdata_loader(label_s = [0,1,2,3,4,5,6,7,8,9]):
+    tr_data =  CustomDataset(*image_file_labe(), transform= train_transform,
+                              label_S = label_s)
     
-tr_data =  CustomDataset(*image_file_labe(), transform= train_transform,
-                          label_S = [1,2,3,4,5,6,7])
+    val_data =  CustomDataset(*image_file_labe(train = False), 
+                              transform=transform,
+                              label_S =  label_s)
+    
+    loader = DataLoader(tr_data, batch_size = 32, shuffle = True)
+    
+    val_loader = DataLoader(val_data, batch_size = 32, shuffle = True)
+    
+    return loader, val_loader
 
-val_data =  CustomDataset(*image_file_labe(train = False), 
-                          transform=transform,
-                          label_S =  [1,2,3,4,5,6,7])
-
-loader = DataLoader(tr_data, batch_size = 32, shuffle = True)
-
-val_loader = DataLoader(val_data, batch_size = 32, shuffle = True)
+loader, val_loader = Fdata_loader(labels = [0,1,2,3,4,5,6])
 
 
 #%% Model 
 
-# CNN model definition
+from networks_mnist import Model, Net
 
-## deeper model adapted from https://www.kaggle.com/gustafsilva/cnn-digit-recognizer-pytorch
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
-        
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 32, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.25)
-        )
-        
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.25)
-        )
-        
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(128),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.25)
-        )
-        
-        self.fc = nn.Sequential(
-            nn.Linear(128, 10)
-        )
-                
-        
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        
-        x_r = x.view(x.size(0), -1)
-        x = self.fc(x_r)
-        x = F.log_softmax(x, dim=1)
-        return x, x_r
-    
-
-# https://nextjournal.com/gkoehler/pytorch-mnist
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.conv2_drop = nn.Dropout2d()
-        self.fc1 = nn.Linear(320, 50)
-        self.fc2 = nn.Linear(50, 10)
-
-    def forward(self, x):
-        x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-        x = x.view(-1, 320)
-        x = F.relu(self.fc1(x))
-        x_r = F.dropout(x, training=self.training)
-        x = self.fc2(x_r)
-        x = F.log_softmax(x, dim=1)   
-        return x, x_r  
 #%% Define Model
 
 model = Model()
@@ -280,9 +215,9 @@ for e in range(epochs):
             break
 #%% Save and Load Model
 
-# torch.save(model.state_dict(), "Saved_models/model_03_67.pth")
+# torch.save(model.state_dict(), "Saved_models/model_all.pth")
 
-model.load_state_dict(torch.load("../NCD_mnist/Saved_models/model_03_67.pth"))
+model.load_state_dict(torch.load("Saved_models/model_0_5.pth"))
 
 #%% Visualization
 #https://gist.github.com/jeasinema/ed9236ce743c8efaf30fa2ff732749f5
@@ -320,7 +255,7 @@ data_t, data_lab = embed_test(val_loader, model)
 
 
 
-#%%
+#%% Ploting TSNE
 
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
@@ -338,7 +273,9 @@ def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab, Lol = None, LoL = 1)
         X_embedded = TSNE(n_components=n_comp, verbose=1).fit_transform(data)
     else:
         X_embedded = LoL
-            
+    
+    print(sklearn.metrics.silhouette_score(data, label1))
+    
     fig = plt.figure()
     ax = fig.add_subplot()
     ax.set_aspect('equal', adjustable='box')
@@ -366,4 +303,12 @@ def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab, Lol = None, LoL = 1)
   
     
 tsne_plot(np.vstack(data_t), 2, np.vstack(data_lab)[:,0], Lol =None,  LoL =  1)
-# shillohette coefficient!
+#%% shillohette coefficient!
+
+print(sklearn.metrics.silhouette_score(np.vstack(data_t), np.vstack(data_lab)[:,0]))
+
+# Optimal cluster Number
+
+for i in range(3,11):
+    new_data = sklearn.cluster.KMeans(n_clusters=i).fit(np.vstack(data_t))
+    print(sklearn.metrics.silhouette_score(np.vstack(data_t), new_data.labels_))
