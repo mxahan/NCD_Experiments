@@ -24,7 +24,7 @@ import random
 
 import idx2numpy
 from torch.utils.data import Dataset, DataLoader
-#%%
+#%% Data Loader
 
 transform=transforms.Compose([
         transforms.Normalize((0.1307,), (0.3081,))
@@ -54,11 +54,11 @@ train_transform = transforms.Compose(
 def image_file_labe(train= True):
     
     if train: 
-        imagefile = 'MNIST/raw/train-images-idx3-ubyte'
-        labelfile = 'MNIST/raw/train-labels-idx1-ubyte'
+        imagefile = '../MNIST/raw/train-images-idx3-ubyte'
+        labelfile = '../MNIST/raw/train-labels-idx1-ubyte'
     else: 
-        imagefile = 'MNIST/raw/t10k-images-idx3-ubyte'
-        labelfile = 'MNIST/raw/t10k-labels-idx1-ubyte'        
+        imagefile = '../MNIST/raw/t10k-images-idx3-ubyte'
+        labelfile = '../MNIST/raw/t10k-labels-idx1-ubyte'        
     
     imagearray = idx2numpy.convert_from_file(imagefile)
     
@@ -103,7 +103,7 @@ class CustomDataset(Dataset):
         return img_tensor, class_id
 
 
-def Fdata_loader(label_s = [0,1,2,3,4,5,6,7,8,9]):
+def Fdata_loader(label_s = [0,1,2,3,4,5,6,7,8,9], batch_size = 32):
     tr_data =  CustomDataset(*image_file_labe(), transform= train_transform,
                               label_S = label_s)
     
@@ -111,13 +111,13 @@ def Fdata_loader(label_s = [0,1,2,3,4,5,6,7,8,9]):
                               transform=transform,
                               label_S =  label_s)
     
-    loader = DataLoader(tr_data, batch_size = 32, shuffle = True)
+    loader = DataLoader(tr_data, batch_size = batch_size, shuffle = True)
     
-    val_loader = DataLoader(val_data, batch_size = 32, shuffle = True)
+    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = True)
     
     return loader, val_loader
 
-loader, val_loader = Fdata_loader(labels = [0,1,2,3,4,5,6])
+loader, val_loader = Fdata_loader(label_s = [4,9])
 
 
 #%% Model 
@@ -217,7 +217,7 @@ for e in range(epochs):
 
 # torch.save(model.state_dict(), "Saved_models/model_all.pth")
 
-model.load_state_dict(torch.load("Saved_models/model_0_5.pth"))
+# model.load_state_dict(torch.load("Saved_models/model_0_5.pth"))
 
 #%% Visualization
 #https://gist.github.com/jeasinema/ed9236ce743c8efaf30fa2ff732749f5
@@ -229,14 +229,12 @@ model.load_state_dict(torch.load("Saved_models/model_0_5.pth"))
 val_data =  CustomDataset(*image_file_labe(train = False), 
                           transform=transform,
                           label_S = [0,1,2,3,4,5,6,7,8,9])
-
 val_loader = DataLoader(val_data, batch_size = 32, shuffle = False)
 
 import pdb
-def embed_test(val_loader, my_net):
+def embed_test(val_loader, model):
     data_t =[] 
     data_lab = []
-    my_net.eval()
     
     model.eval()
     with torch.no_grad():
@@ -260,19 +258,13 @@ data_t, data_lab = embed_test(val_loader, model)
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import seaborn as sns
-View_po = ['C0', 'C1', 'C2']
 
-# if 'X_embedded' in locals():
-#     None
-# else:
-#     X_embedded = TSNE(n_components=2, verbose=1).fit_transform(data_t)
- 
 
-def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab, Lol = None, LoL = 1):
-    if Lol== None:
-        X_embedded = TSNE(n_components=n_comp, verbose=1).fit_transform(data)
-    else:
-        X_embedded = LoL
+def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab):
+    
+    
+    X_embedded = TSNE(n_components=n_comp, verbose=1).fit_transform(data)
+
     
     print(sklearn.metrics.silhouette_score(data, label1))
     
@@ -281,7 +273,6 @@ def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab, Lol = None, LoL = 1)
     ax.set_aspect('equal', adjustable='box')
     if n_comp == 3:ax = fig.add_subplot(projection ='3d')
     
-    # cdict = {0: 'red', 1: 'blue', 2: 'green'}
     
     markers = ['v', 'x', 'o', '.', '>', '<', '1', '2', '3', '4']
     
@@ -302,13 +293,13 @@ def tsne_plot(data = data_t, n_comp = 3, label1 = data_lab, Lol = None, LoL = 1)
     #plt 2
   
     
-tsne_plot(np.vstack(data_t), 2, np.vstack(data_lab)[:,0], Lol =None,  LoL =  1)
+tsne_plot(np.vstack(data_t), 2, np.vstack(data_lab)[:,0])
 #%% shillohette coefficient!
 
 print(sklearn.metrics.silhouette_score(np.vstack(data_t), np.vstack(data_lab)[:,0]))
 
 # Optimal cluster Number
 
-for i in range(3,11):
+for i in range(2,5):
     new_data = sklearn.cluster.KMeans(n_clusters=i).fit(np.vstack(data_t))
     print(sklearn.metrics.silhouette_score(np.vstack(data_t), new_data.labels_))
